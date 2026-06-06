@@ -1,0 +1,120 @@
+# ================================================================
+#  Package HA — Serre Arrosage
+#  /config/packages/serre.yaml
+# ================================================================
+
+mqtt:
+  sensor:
+    - name: "Relais"
+      state_topic: "serre/arrosage/relay"
+      unique_id: serre_relay
+      device: &serre_device
+        identifiers: ["arduino_serre"]
+        name: "Arduino Serre"
+        model: "ESP8266 Arrosage v1.2"
+        manufacturer: "DIY"
+
+    - name: "Température"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.temp_c }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      unique_id: serre_temp
+      device: *serre_device
+
+    - name: "Heure RTC"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.time }}"
+      unique_id: serre_time
+      device: *serre_device
+
+    - name: "Source Heure"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.time_source }}"
+      unique_id: serre_time_source
+      device: *serre_device
+
+    - name: "Arrosage Matin Fait"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.morning_done }}"
+      unique_id: serre_morning
+      device: *serre_device
+
+    - name: "Cooldown Actif"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.temp_cooldown }}"
+      unique_id: serre_cooldown
+      device: *serre_device
+
+    - name: "ESP Status"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.status }}"
+      unique_id: serre_status
+      device: *serre_device
+
+    - name: "IP ESP"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.ip }}"
+      unique_id: serre_ip
+      device: *serre_device
+
+  button:
+    - name: "Arrosage Court 2min"
+      command_topic: "serre/arrosage/cmd"
+      payload_press: "ON_TEMP"
+      unique_id: serre_btn_short
+      icon: mdi:water-outline
+      device: *serre_device
+
+    - name: "Arrosage Long 15min"
+      command_topic: "serre/arrosage/cmd"
+      payload_press: "ON_FULL"
+      unique_id: serre_btn_long
+      icon: mdi:water
+      device: *serre_device
+
+    - name: "Arrêt Arrosage"
+      command_topic: "serre/arrosage/cmd"
+      payload_press: "OFF"
+      unique_id: serre_btn_off
+      icon: mdi:water-off
+      device: *serre_device
+
+    - name: "Reset Arrosage Matin"
+      command_topic: "serre/arrosage/cmd"
+      payload_press: "RESET_MORNING"
+      unique_id: serre_btn_reset
+      icon: mdi:restart
+      device: *serre_device
+
+# ================================================================
+#  AUTOMATIONS
+# ================================================================
+automation:
+  - id: serre_esp_offline_alert
+    alias: "Serre — ESP hors ligne"
+    trigger:
+      - platform: state
+        entity_id: sensor.arduino_serre_esp_status
+        to: "offline"
+        for:
+          minutes: 5
+    action:
+      - service: notify.mobile_app_iphone_jer
+        data:
+          title: "🌿 Serre Arrosage"
+          message: "⚠️ L'ESP de la serre est hors ligne depuis 5 min !"
+
+  - id: serre_arrosage_notif
+    alias: "Serre — Notification arrosage"
+    trigger:
+      - platform: state
+        entity_id: sensor.arduino_serre_relais
+        to: "ON"
+    action:
+      - service: notify.mobile_app_iphone_jer
+        data:
+          title: "🌿 Serre — Arrosage"
+          message: >
+            Arrosage démarré ({{ states('sensor.arduino_serre_source_heure') }}).
+            Temp : {{ states('sensor.arduino_serre_temperature') }}°C
