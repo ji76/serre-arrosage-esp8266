@@ -1,5 +1,5 @@
 // ================================================================
-//  SERRE ARROSAGE AUTONOME v1.1
+//  SERRE ARROSAGE AUTONOME v1.3
 //  Matériel : ESP8266 + Relais HW-803 + Électrovanne 24VAC
 //  DS3231   : OPTIONNEL (fallback hors WiFi)
 //  Heure    : NTP en priorité, DS3231 si WiFi absent
@@ -159,6 +159,76 @@ void relayOFF() {
 }
 
 // ================================================================
+// CAPTEURS DE DÉBIT
+// ================================================================
+
+void computeFlow(FlowData& fd, volatile uint32_t& pulseCount) {
+  uint32_t ms = millis();
+  uint32_t elapsed = ms - fd.lastCalcMs;
+  if (elapsed < 1000) return; // calcul 1x/seconde
+
+  // Snapshot atomique
+  noInterrupts();
+  uint32_t pulses = pulseCount - fd.lastPulse;
+  fd.lastPulse = pulseCount;
+  interrupts();
+
+  float liters = pulses / PULSES_PER_LITER;
+  fd.flowLpm      = liters * (60000.0f / elapsed); // L/min
+  fd.cycleLiters += liters;
+  fd.dailyLiters += liters;
+  fd.totalLiters += liters;
+  fd.lastCalcMs   = ms;
+}
+
+void publishFlow(FlowData& fd, const char* topic, const char* name) {
+  if (!mqtt.connected()) return;
+  char msg[200];
+  snprintf(msg, sizeof(msg),
+    "{"
+      "\"name\":\"%s\","
+      "\"flow_lpm\":%.2f,"
+      "\"cycle_l\":%.2f,"
+      "\"daily_l\":%.2f,"
+      "\"total_l\":%.2f"
+    "}",
+    name, fd.flowLpm, fd.cycleLiters, fd.dailyLiters, fd.totalLiters
+  );
+  mqtt.publish(topic, msg, true);
+}
+
+void sendFlowAlert(const char* msg) {
+  Serial.printf("[DEBIT] ⚠️ %s\n", msg);
+  if (mqtt.connected()) mqtt.publish(TOPIC_FLOW_ALERT, msg, false);
+}
+
+void checkFlowAlerts() {
+  uint32_t ms = millis();
+
+  // Fuite maison : débit > seuil hors arrosage actif
+  if (!relayActive && fdMaison.flowLpm > ALERT_LEAK_LPM && !alertLeakMaison) {
+    alertLeakMaison = true;
+    sendFlowAlert("FUITE_MAISON: débit détecté hors arrosage");
+  } else if (fdMaison.flowLpm <= ALERT_LEAK_LPM) {
+    alertLeakMaison = false;
+  }
+
+  // Fuite chevaux
+  if (fdChevaux.flowLpm > ALERT_LEAK_LPM && !alertLeakChevaux) {
+    alertLeakChevaux = true;
+    sendFlowAlert("FUITE_CHEVAUX: débit anormal détecté");
+  } else if (fdChevaux.flowLpm <= ALERT_LEAK_LPM) {
+    alertLeakChevaux = false;
+  }
+
+  // Débit trop élevé
+  if (fdMaison.flowLpm > ALERT_HIGHFLOW_LPM)
+    sendFlowAlert("DEBIT_ELEVE_MAISON: possible rupture canalisation");
+  if (fdChevaux.flowLpm > ALERT_HIGHFLOW_LPM)
+    sendFlowAlert("DEBIT_ELEVE_CHEVAUX: possible rupture canalisation");
+}
+
+// ================================================================
 // WiFi
 // ================================================================
 
@@ -291,7 +361,7 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   Serial.println("\n=============================");
-  Serial.println("  SERRE ARROSAGE v1.1");
+  Serial.println("  SERRE ARROSAGE v1.3");
   Serial.println("=============================");
 
   pinMode(RELAY_PIN, OUTPUT);
@@ -315,6 +385,15 @@ void setup() {
   mqtt.setCallback(mqttCallback);
   mqtt.setKeepAlive(60);
   connectMQTT();
+
+  // Capteurs de débit
+  pinMode(FLOW_PIN_MAISON,  INPUT_PULLUP);
+  pinMode(FLOW_PIN_CHEVAUX, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(FLOW_PIN_MAISON),  isrMaison,  FALLING);
+  attachInterrupt(digitalPinToInterrupt(FLOW_PIN_CHEVAUX), isrChevaux, FALLING);
+  fdMaison.lastCalcMs  = millis();
+  fdChevaux.lastCalcMs = millis();
+  Serial.println("[FLOW] Capteurs débit initialisés");
 
   ArduinoOTA.setHostname("serre-arrosage");
   ArduinoOTA.onStart([]() { Serial.println("[OTA] Démarrage..."); });
@@ -371,10 +450,17 @@ void loop() {
     relayON(DURATION_TEMP_S * 1000UL, "temp_30deg");
   }
 
-  // 6. Status périodique
+  // 6. Calcul débit (1x/seconde via computeFlow interne)
+  computeFlow(fdMaison,  pulseMaison);
+  computeFlow(fdChevaux, pulseChevaux);
+  checkFlowAlerts();
+
+  // 7. Status périodique
   if (ms - lastStatusMs >= STATUS_INTERVAL_MS) {
     lastStatusMs = ms;
     publishStatus(now);
+    publishFlow(fdMaison,  TOPIC_FLOW_MAISON,  "maison");
+    publishFlow(fdChevaux, TOPIC_FLOW_CHEVAUX, "chevaux");
   }
 
   delay(1000);
