@@ -127,3 +127,89 @@ automation:
           message: >
             Arrosage démarré ({{ states('sensor.arduino_serre_source_heure') }}).
             Temp : {{ states('sensor.arduino_serre_temperature') }}°C
+
+  # ── Capteurs débit ──────────────────────────────────────────────
+    - name: "Débit Maison"
+      state_topic: "serre/debit/maison"
+      value_template: "{{ value_json.flow_lpm | round(2) }}"
+      unit_of_measurement: "L/min"
+      unique_id: serre_flow_maison
+      icon: mdi:water-pump
+      device: *serre_device
+
+    - name: "Cycle Maison"
+      state_topic: "serre/debit/maison"
+      value_template: "{{ value_json.cycle_l | round(2) }}"
+      unit_of_measurement: "L"
+      unique_id: serre_cycle_maison
+      icon: mdi:counter
+      device: *serre_device
+
+    - name: "Journalier Maison"
+      state_topic: "serre/debit/maison"
+      value_template: "{{ value_json.daily_l | round(1) }}"
+      unit_of_measurement: "L"
+      unique_id: serre_daily_maison
+      icon: mdi:calendar-today
+      device: *serre_device
+
+    - name: "Total Maison"
+      state_topic: "serre/debit/maison"
+      value_template: "{{ value_json.total_l | round(1) }}"
+      unit_of_measurement: "L"
+      unique_id: serre_total_maison
+      icon: mdi:water-boiler
+      device: *serre_device
+
+    - name: "Débit Chevaux"
+      state_topic: "serre/debit/chevaux"
+      value_template: "{{ value_json.flow_lpm | round(2) }}"
+      unit_of_measurement: "L/min"
+      unique_id: serre_flow_chevaux
+      icon: mdi:horse
+      device: *serre_device
+
+    - name: "Cycle Chevaux"
+      state_topic: "serre/debit/chevaux"
+      value_template: "{{ value_json.cycle_l | round(2) }}"
+      unit_of_measurement: "L"
+      unique_id: serre_cycle_chevaux
+      icon: mdi:counter
+      device: *serre_device
+
+    - name: "Journalier Chevaux"
+      state_topic: "serre/debit/chevaux"
+      value_template: "{{ value_json.daily_l | round(1) }}"
+      unit_of_measurement: "L"
+      unique_id: serre_daily_chevaux
+      icon: mdi:calendar-today
+      device: *serre_device
+
+    - name: "Total Chevaux"
+      state_topic: "serre/debit/chevaux"
+      value_template: "{{ value_json.total_l | round(1) }}"
+      unit_of_measurement: "L"
+      unique_id: serre_total_chevaux
+      icon: mdi:water-boiler
+      device: *serre_device
+
+    - name: "Alerte Débit"
+      state_topic: "serre/debit/alerte"
+      unique_id: serre_flow_alert
+      icon: mdi:alert
+      device: *serre_device
+
+  # ── Automation alerte débit ──────────────────────────────────────
+  - id: serre_flow_alert
+    alias: "Serre — Alerte débit anormal"
+    trigger:
+      - platform: state
+        entity_id: sensor.arduino_serre_alerte_debit
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.state not in ['unknown', 'unavailable', ''] }}"
+    action:
+      - service: notify.mobile_app_iphone_jer
+        data:
+          title: "💧 Serre — Alerte Eau"
+          message: "{{ states('sensor.arduino_serre_alerte_debit') }}"
