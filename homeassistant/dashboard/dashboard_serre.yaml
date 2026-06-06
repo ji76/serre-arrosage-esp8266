@@ -152,3 +152,105 @@ cards:
           service: button.press
           service_data:
             entity_id: button.arduino_serre_arret_arrosage
+
+  # ── DÉBITMÈTRES ───────────────────────────────────────────────
+  - type: custom:bubble-card
+    card_type: separator
+    name: 💧 Compteurs eau
+
+  # Débit temps réel
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_debit_maison') }} L/min"
+        secondary: Débit maison
+        icon: mdi:water-pump
+        icon_color: >
+          {% set f = states('sensor.arduino_serre_debit_maison') | float(0) %}
+          {{ 'red' if f > 25 else 'blue' if f > 0.5 else 'disabled' }}
+        badge_icon: >
+          {{ 'mdi:alert' if states('sensor.arduino_serre_debit_maison') | float(0) > 25 else '' }}
+        badge_color: red
+
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_debit_chevaux') }} L/min"
+        secondary: Débit chevaux
+        icon: mdi:horse
+        icon_color: >
+          {% set f = states('sensor.arduino_serre_debit_chevaux') | float(0) %}
+          {{ 'red' if f > 25 else 'blue' if f > 0.5 else 'disabled' }}
+        badge_icon: >
+          {{ 'mdi:alert' if states('sensor.arduino_serre_debit_chevaux') | float(0) > 25 else '' }}
+        badge_color: red
+
+  # Graphique débit temps réel
+  - type: custom:mini-graph-card
+    name: Débit — 1 heure
+    entities:
+      - entity: sensor.arduino_serre_debit_maison
+        name: Maison
+        color: "#1565C0"
+      - entity: sensor.arduino_serre_debit_chevaux
+        name: Chevaux
+        color: "#2e7d32"
+    hours_to_show: 1
+    points_per_hour: 12
+    line_width: 2
+    smoothing: false
+    show:
+      labels: true
+      points: false
+      legend: true
+      fill: false
+
+  # Cycle en cours
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_cycle_maison') }} L"
+        secondary: Cycle maison
+        icon: mdi:counter
+        icon_color: blue
+
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_cycle_chevaux') }} L"
+        secondary: Cycle chevaux
+        icon: mdi:counter
+        icon_color: green
+
+  # Journalier + Total
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_journalier_maison') }} L"
+        secondary: Aujourd'hui maison
+        icon: mdi:calendar-today
+        icon_color: blue
+
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_journalier_chevaux') }} L"
+        secondary: Aujourd'hui chevaux
+        icon: mdi:calendar-today
+        icon_color: green
+
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_total_maison') }} L"
+        secondary: Total maison
+        icon: mdi:water-boiler
+        icon_color: blue
+
+      - type: custom:mushroom-template-card
+        primary: "{{ states('sensor.arduino_serre_total_chevaux') }} L"
+        secondary: Total chevaux
+        icon: mdi:water-boiler
+        icon_color: green
+
+  # Alerte débit
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.arduino_serre_alerte_debit') }}"
+    secondary: Dernière alerte
+    icon: mdi:alert-circle-outline
+    icon_color: >
+      {{ 'red' if states('sensor.arduino_serre_alerte_debit') not in ['unknown','unavailable',''] else 'disabled' }}
