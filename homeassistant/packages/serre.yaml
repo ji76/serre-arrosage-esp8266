@@ -58,6 +58,15 @@ mqtt:
       unique_id: serre_ip
       device: *serre_device
 
+
+    - name: "Température DS3231"
+      state_topic: "serre/arrosage/status"
+      value_template: "{{ value_json.rtc_temp_c }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      unique_id: serre_rtc_temp
+      icon: mdi:thermometer-check
+      device: *serre_device
   button:
     - name: "Arrosage Court 2min"
       command_topic: "serre/arrosage/cmd"
