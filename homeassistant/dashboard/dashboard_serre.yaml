@@ -33,6 +33,13 @@ cards:
              else 'mdi:chip' }}
         icon_color: teal
 
+      - type: template
+        content: "{{ states('sensor.arduino_serre_temperature_ds3231') | float(0) | round(1) }}°C"
+        icon: mdi:thermometer-lines
+        icon_color: >
+          {% set t = states('sensor.arduino_serre_temperature_ds3231') | float(0) %}
+          {{ 'red' if t > 30 else 'orange' if t > 25 else 'green' }}
+
   # ── TEMPÉRATURE + ÉLECTROVANNE ────────────────────────────────
   - type: horizontal-stack
     cards:
