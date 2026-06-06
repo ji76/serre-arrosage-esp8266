@@ -254,14 +254,15 @@ void connectMQTT() {
 
 void publishStatus(const TimeInfo& t) {
   if (!mqtt.connected()) return;
-  char msg[320];
+  float rtcTemp = rtcPresent ? rtc.getTemperature() : -99.0f;
+  char msg[380];
   snprintf(msg, sizeof(msg),
     "{"
       "\"status\":\"online\","
       "\"time\":\"%02d:%02d:%02d\","
       "\"date\":\"%04d-%02d-%02d\","
       "\"time_source\":\"%s\","
-      "\"temp_c\":%.1f,"
+      "\"temp_c\":%.1f,\"rtc_temp_c\":%.1f,"
       "\"relay\":\"%s\","
       "\"relay_reason\":\"%s\","
       "\"morning_done\":%s,"
@@ -272,6 +273,7 @@ void publishStatus(const TimeInfo& t) {
     t.year, t.month, t.day,
     ntpSynced ? "NTP" : (rtcPresent ? "RTC" : "none"),
     currentTemp,
+    rtcTemp,
     relayActive ? "ON" : "OFF",
     relayReason,
     morningDone        ? "true" : "false",
